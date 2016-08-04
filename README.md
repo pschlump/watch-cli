@@ -1,4 +1,5 @@
-# watch-cli
+watch-cli: Watch file system and run command when files change
+==============================================================
 
 Go (golang) tool for watching a path and running a command when files change.
 
