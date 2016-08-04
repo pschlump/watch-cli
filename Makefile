@@ -5,9 +5,12 @@
 all: 
 	go build
 
+install:  watch-cli
+	cp watch-cli ~/bin
+
 watch-cli: main.go util_bsd.go util_linux.go util_windows.go
 	go build 
-	cp watch-cli ~/bin
+
 
 run-it:
 	go build

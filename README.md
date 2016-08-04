@@ -8,6 +8,18 @@ you want `/home/pschlump/Projects/rpt-q/rpt-q-init.sh` to run.
 
 ``` bash
 
-	$ watch-cli -c "bash -c '/home/pschlump/Projects/rpt-q/rpt-q-init.sh" ~/Projects/tab-server1/ 
+	$ watch-cli -c "bash -c '/home/pschlump/Projects/rpt-q/rpt-q-init.sh'" ~/Projects/tab-server1/ 
+
+```
+
+By default the watch-cli will read in a ./watch-cli-cfg.json configuration file.
+This file can specify the files to watch.  This file is checked for after the `-t` change directory
+command line option is applied.
+
+```JSON
+
+{
+	"FilesToWatch": [ "abc.def", "./config-dir" ]
+}
 
 ```

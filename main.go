@@ -21,6 +21,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"html"
 	"io/ioutil"
@@ -307,6 +308,10 @@ func setRunCmd(x bool) {
 	mutex.Unlock()
 }
 
+type JSONCfg struct {
+	FilesToWatch []string
+}
+
 func main() {
 
 	tmp1, err := flags.ParseArgs(&opts, os.Args)
@@ -323,6 +328,27 @@ func main() {
 			fmt.Printf("Unable to change directories to %s, error: %s\n", opts.CdTo, err)
 			os.Exit(1)
 		}
+	}
+
+	var gCfg JSONCfg
+
+	// Read in JSON config file if it exists
+	if Exists(opts.Cfg) {
+		fb, err := ioutil.ReadFile(opts.Cfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading config file %s, %s\n", opts.Cfg, err)
+			os.Exit(1)
+		}
+
+		err = json.Unmarshal(fb, &gCfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading config file %s, %s - file did not parse\n", opts.Cfg, err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Config file %s read in, watching %s\n", opts.Cfg, gCfg.FilesToWatch)
+
+		flist = append(flist, gCfg.FilesToWatch...)
 	}
 
 	// Delcare stuff --------------------------------------------------------------------------------------
