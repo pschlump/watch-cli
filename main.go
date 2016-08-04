@@ -30,16 +30,65 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
-	flags "github.com/jessevdk/go-flags"
-	tr "github.com/pschlump/godebug" // "../go-lib/tr" // "www.2c-why.com/go-lib/tr"
-
 	"github.com/howeyc/fsnotify"
+	flags "github.com/jessevdk/go-flags"
+	"github.com/pschlump/godebug"
 )
+
+var hookableSignals []os.Signal
+var sigChan chan os.Signal
+
+func init() {
+	hookableSignals = []os.Signal{
+		syscall.SIGHUP,
+		syscall.SIGUSR1,
+		syscall.SIGUSR2,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGTSTP,
+	}
+	sigChan = make(chan os.Signal)
+}
+
+// handleSignals listens for os Signals and ignores some.
+func handleSignals() {
+	var sig os.Signal
+
+	signal.Notify(
+		sigChan,
+		hookableSignals...,
+	)
+
+	pid := syscall.Getpid()
+	for {
+		sig = <-sigChan
+		switch sig {
+		case syscall.SIGHUP:
+			log.Printf("Pid=%d Received SIGHUP. ignored.\n", pid)
+		case syscall.SIGUSR1:
+			log.Printf("Pid=%d Received SIGUSR1. ignored.\n", pid)
+		case syscall.SIGUSR2:
+			log.Printf("Pid=%d Received SIGUSR2. ignored.\n", pid)
+		case syscall.SIGINT:
+			log.Printf("Pid=%d Received SIGINT. exit.\n", pid)
+			os.Exit(1)
+		case syscall.SIGTERM:
+			log.Printf("Pid=%d Received SIGTERM. exit.\n", pid)
+			os.Exit(1)
+		case syscall.SIGTSTP:
+			log.Printf("Pid=%d Received SIGTSTP. ignored.\n", pid)
+		default:
+			log.Printf("Received %v: irrelevant signal...\n", sig)
+		}
+	}
+}
 
 var optsRecursive = false
 
@@ -99,7 +148,7 @@ func (jar *Jar) SpillCookies() {
 		for j, w := range v {
 			// fmt.Printf ( "Path(%s) [%d]: %v\n", i, j, w )
 			if db1 {
-				fmt.Printf("Path(%s) [%d]: %s\n", i, j, tr.SVar(w))
+				fmt.Printf("Path(%s) [%d]: %s\n", i, j, godebug.SVar(w))
 			}
 		}
 	}
@@ -122,12 +171,12 @@ func (jar *Jar) getX() string {
 func doGet(client *http.Client, url string) string {
 	r1, e0 := client.Get(url)
 	if e0 != nil {
-		fmt.Printf("Error!!!!!!!!!!! %v, %s\n", e0, tr.LF())
+		fmt.Printf("Error!!!!!!!!!!! %v, %s\n", e0, godebug.LF())
 		return "Error"
 	}
 	rv, e1 := ioutil.ReadAll(r1.Body)
 	if e1 != nil {
-		fmt.Printf("Error!!!!!!!!!!! %v, %s\n", e1, tr.LF())
+		fmt.Printf("Error!!!!!!!!!!! %v, %s\n", e1, godebug.LF())
 		return "Error"
 	}
 	r1.Body.Close()
@@ -351,6 +400,9 @@ func main() {
 		flist = append(flist, gCfg.FilesToWatch...)
 	}
 
+	// setup signal handler to ignore some signals
+	go handleSignals()
+
 	// Delcare stuff --------------------------------------------------------------------------------------
 	cli_buf := strings.Split(opts.Cmd, " ")
 
@@ -359,11 +411,13 @@ func main() {
 	quit := make(chan struct{})
 	go func() {
 		for {
+			// fmt.Printf("AT: %s\n", godebug.LF())
 			select {
 			case <-ticker.C:
 				// do stuff
 				if getClearRunCmd() {
 					// setRunCmd(false)
+					// fmt.Printf("AT: %s\n", godebug.LF())
 					cmd := exec.Command(cli_buf[0], cli_buf[1:]...)
 					// cmd.Stdin = strings.NewReader("some input")
 					var out bytes.Buffer
@@ -372,9 +426,11 @@ func main() {
 					if err != nil {
 						fmt.Printf("Run Errors: %s", err)
 					}
+					// fmt.Printf("AT: %s\n", godebug.LF())
 					fmt.Printf("%s\n", out.String())
 				}
 			case <-quit:
+				// fmt.Printf("AT: %s\n", godebug.LF())
 				ticker.Stop()
 				return
 			}
@@ -387,36 +443,52 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// fmt.Printf("AT: %s\n", godebug.LF())
 	done := make(chan bool)
 
 	// Process events
 	go func() {
 		for {
+			// fmt.Printf("AT: %s\n", godebug.LF())
 			select {
 			case ev := <-watcher.Event:
+				// fmt.Printf("AT: %s\n", godebug.LF())
 				fmt.Printf("Event: %+v\n", ev) // log.Println("event:", ev)
 				name := ev.Name
 				isRen := ev.IsRename()
-				fmt.Printf("Caught an event, %s\n", tr.SVar(ev))
+				fmt.Printf("Caught an event, %s\n", godebug.SVar(ev))
 
 				setRunCmd(true)
 
 				if isRen {
 					err = watcher.Watch(name)
 					if err != nil {
-						fmt.Printf("Failed to set watch on %s, %s, %s\n", name, err, tr.LF())
+						fmt.Printf("Failed to set watch on %s, %s, -- will try again in 1/10 of second %s\n", name, err, godebug.LF())
+						go func(watcher *fsnotify.Watcher, name string) {
+							time.Sleep(100 * time.Millisecond)
+							err := watcher.Watch(name)
+							if err != nil {
+								fmt.Printf("Failed to set watch on %s, %s, -- 2nd try%s\n", name, err, godebug.LF())
+							} else {
+								fmt.Printf("Success on 2nd try - watch on %s, %s\n", name, godebug.LF())
+							}
+						}(watcher, name)
 					}
+
 				}
 			case err := <-watcher.Error:
+				// fmt.Printf("AT: %s\n", godebug.LF())
 				log.Println("error:", err)
 			}
 		}
+		// fmt.Printf("AT: %s\n", godebug.LF())
 	}()
 
 	fmt.Printf("***************************************\n")
 	fmt.Printf("* watching %s \n", flist)
 	fmt.Printf("***************************************\n")
 	for _, fn := range flist {
+		// fmt.Printf("AT: %s\n", godebug.LF())
 		if DirExists(fn) {
 			var fns []string
 			if !optsRecursive {
@@ -427,19 +499,23 @@ func main() {
 			for _, fn0 := range fns {
 				err = watcher.Watch(fn0)
 				if err != nil {
-					fmt.Printf("Failed to set watch on %s, %s, %s\n", fn0, err, tr.LF())
+					fmt.Printf("Failed to set watch on %s, %s, %s\n", fn0, err, godebug.LF())
 				}
 			}
 		} else {
+			// fmt.Printf("AT: %s\n", godebug.LF())
 			err = watcher.Watch(fn)
 			if err != nil {
-				fmt.Printf("Failed to set watch on %s, %s, %s\n", fn, err, tr.LF())
+				fmt.Printf("Failed to set watch on %s, %s, %s\n", fn, err, godebug.LF())
 			}
 		}
+		// fmt.Printf("AT: %s\n", godebug.LF())
 	}
+	// fmt.Printf("AT: %s\n", godebug.LF())
 
 	<-done
 
+	// fmt.Printf("AT: %s\n", godebug.LF())
 	/* ... do stuff ... */
 	watcher.Close()
 }
