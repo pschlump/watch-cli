@@ -1,11 +1,8 @@
 //
 // watch-cli - watch configuration files and run command when files change
 //
-// (C) Philip Schlump, 2013-2015.
-// Version: 1.0.1
-// BuildNo: 003
-//
-// /Users/corwin/Projects/watch-cli
+// (C) Philip Schlump, 2013-2016.
+// Version: 1.0.2
 //
 // Example:
 // 		./watch-cli -c "make refresh_site"
