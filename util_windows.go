@@ -14,3 +14,6 @@ var opts struct {
 	CdTo string `short:"t" long:"cdto"            description:"Directory to cd to before running comand" default:"."`
 	Cfg  string `short:"C" long:"cfg"             description:"JSON configuration file"                  default:"./watch-cli-cfg.json"`
 }
+
+func handleSignals() {
+}

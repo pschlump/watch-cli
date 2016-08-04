@@ -27,65 +27,15 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"os/signal"
 	"regexp"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/howeyc/fsnotify"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/pschlump/godebug"
 )
-
-var hookableSignals []os.Signal
-var sigChan chan os.Signal
-
-func init() {
-	hookableSignals = []os.Signal{
-		syscall.SIGHUP,
-		syscall.SIGUSR1,
-		syscall.SIGUSR2,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGTSTP,
-	}
-	sigChan = make(chan os.Signal)
-}
-
-// handleSignals listens for os Signals and ignores some.
-func handleSignals() {
-	var sig os.Signal
-
-	signal.Notify(
-		sigChan,
-		hookableSignals...,
-	)
-
-	pid := syscall.Getpid()
-	for {
-		sig = <-sigChan
-		switch sig {
-		case syscall.SIGHUP:
-			log.Printf("Pid=%d Received SIGHUP. ignored.\n", pid)
-		case syscall.SIGUSR1:
-			log.Printf("Pid=%d Received SIGUSR1. ignored.\n", pid)
-		case syscall.SIGUSR2:
-			log.Printf("Pid=%d Received SIGUSR2. ignored.\n", pid)
-		case syscall.SIGINT:
-			log.Printf("Pid=%d Received SIGINT. exit.\n", pid)
-			os.Exit(1)
-		case syscall.SIGTERM:
-			log.Printf("Pid=%d Received SIGTERM. exit.\n", pid)
-			os.Exit(1)
-		case syscall.SIGTSTP:
-			log.Printf("Pid=%d Received SIGTSTP. ignored.\n", pid)
-		default:
-			log.Printf("Received %v: irrelevant signal...\n", sig)
-		}
-	}
-}
 
 var optsRecursive = false
 
