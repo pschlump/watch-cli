@@ -7,11 +7,27 @@
 // Example:
 // 		./watch-cli -c "make refresh_site"
 //
+// TODO:
+//	1. with config file should be able to set up multipe file/file/run sets
+//	2. Change config to options from CLI lead to a global config, or read in global config JSON
+//	3. Decrease sleep time to 500ms (1/2 sec)
+//	4. When a file chagnes do a lookup on the set of commands to run, one file may be in many lists of actions
+//	5. Allow for commands ::SIGHUP - to be a direct signal send to a PID
+//		An "ActionType": CMD, Signal, GET, POST
+//	6. Allow searching for the PID via a ps|PatternMatch of some sort, PID may change if process forks
+//	7. Access the processes vi /proc - library to get list of processes
+//	8. Ability to do a GET|POST to an API when stuff changes.		(Reload of Code)
+//
 // Issues:
-// 		0. Adding files should work - API to add file, then re-init of watch-cli
+// 		0. Adding files should work - API to add file, then re-init of watch-cli		(ADD/RM/STATUS/RE-search)
 //			/api/list/add-cfg-file?fn=, then...
 //			Some sort of signal to watch-cli to re-init?
-// 		1. For a farm need to send messages to "every" tab-server1.go -- Serve Farm
+//	0. A shutdown API
+//	1. API to list what is currently watched/cmds to send.
+//	2. Config for this in the .JSON file, listen - port to listen on. API KEY etc.
+//	3. recursive and file-match-patterns for what to watch.
+//		"Recursive":true,
+//		"MatchRE":"sql-cfg-*.json",
 //
 
 package main
@@ -36,6 +52,12 @@ import (
 	flags "github.com/jessevdk/go-flags"
 	"github.com/pschlump/godebug"
 )
+
+type JSONCfg struct {
+	FilesToWatch []string
+	CmdToRun     string
+	CdTo         string
+}
 
 var optsRecursive = false
 
@@ -304,10 +326,6 @@ func setRunCmd(x bool) {
 	mutex.Unlock()
 }
 
-type JSONCfg struct {
-	FilesToWatch []string
-}
-
 func main() {
 
 	tmp1, err := flags.ParseArgs(&opts, os.Args)
@@ -345,6 +363,12 @@ func main() {
 		fmt.Printf("Config file %s read in, watching %s\n", opts.Cfg, gCfg.FilesToWatch)
 
 		flist = append(flist, gCfg.FilesToWatch...)
+		if gCfg.CmdToRun != "" {
+			opts.Cmd = gCfg.CmdToRun
+		}
+		if gCfg.CdTo != "" {
+			opts.CdTo = gCfg.CdTo
+		}
 	}
 
 	// setup signal handler to ignore some signals
